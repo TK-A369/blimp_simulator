@@ -20,25 +20,45 @@ impl Simulation {
         Self {
             blimp: SimBlimp {
                 coord_mat: nalgebra::Affine3::identity(),
+                main_algo: blimp_onboard_software::obsw_algo::BlimpMainAlgo::new(),
             },
             earth_radius: 6371000.0,
         }
     }
 
-    async fn step(&mut self) {}
+    async fn step(&mut self) {
+        self.blimp.main_algo.step().await;
+    }
 }
 
 #[tokio::main]
 async fn main() {
     let mut sim = Simulation::new();
 
-    tokio::spawn(async move {
-        loop {
-            sim.step().await;
+    let (shutdown_tx, mut shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);
 
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        }
-    });
+    {
+        let mut shutdown_rx = shutdown_tx.subscribe();
+        tokio::spawn(async move {
+            loop {
+                sim.step().await;
+
+                tokio::select! {
+                    _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {},
+                    _ = shutdown_rx.recv() => {
+                        break;
+                    },
+                };
+            }
+        });
+    }
 
     println!("Hello, world!");
+
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.unwrap_or(());
+        shutdown_tx.send(()).unwrap();
+    });
+
+    shutdown_rx.recv().await.unwrap();
 }

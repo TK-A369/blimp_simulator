@@ -62,7 +62,6 @@ checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
 [[package]]
 name = "blimp_onboard_software"
 version = "0.1.0"
-source = "git+https://github.com/TK-A369/blimp_onboard_software#d59499b142d5253ad363ab1ec3eb5cc6d5656ace"
 
 [[package]]
 name = "blimp_simulator"

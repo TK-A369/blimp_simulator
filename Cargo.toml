@@ -9,4 +9,4 @@ nalgebra = "0.33.2"
 simba = "0.9.0"
 tokio = { version = "1.41.1", features = ["full"] }
 typenum = "1.17.0"
-blimp_onboard_software = { git = "https://github.com/TK-A369/blimp_onboard_software" }
+blimp_onboard_software = { path = "deps/blimp_onboard_software" }

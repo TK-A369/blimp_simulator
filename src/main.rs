@@ -1,12 +1,13 @@
 use fixed;
+use futures_util::StreamExt;
 use nalgebra;
 use postcard;
 use simba;
 use tokio;
 use tokio_tungstenite;
 use typenum;
-use futures_util::StreamExt
 
+use blimp_ground_ws_interface;
 use blimp_onboard_software;
 use blimp_onboard_software::obsw_interface::BlimpAlgorithm;
 
@@ -47,6 +48,57 @@ impl Simulation {
 
     async fn step(&mut self) {
         self.blimp.main_algo.step().await;
+    }
+}
+
+async fn handle_ground_ws_connection(stream: tokio::net::TcpStream) {
+    println!("Accepting new WebSocket connection...");
+    if let Ok(mut ws_stream) = tokio_tungstenite::accept_async(stream).await {
+        println!(
+            "New WebSocket connection with {}",
+            ws_stream
+                .get_ref()
+                .peer_addr()
+                .and_then(|x| Ok(format!("{}", x)))
+                .unwrap_or("unknown".to_string())
+        );
+
+        let mut use_postcard: Option<bool> = None;
+        while let Some(ws_msg) = ws_stream.next().await {
+            if let Ok(ws_msg) = ws_msg {
+                fn handle_message_v2g(msg: blimp_ground_ws_interface::MessageV2G) {
+                    println!("Got V2G message:\n{:#?}", &msg);
+                    match msg {
+                        blimp_ground_ws_interface::MessageV2G::DeclareInterest(interest) => {}
+                        blimp_ground_ws_interface::MessageV2G::Controls(ctrls) => {}
+                    }
+                }
+
+                match ws_msg {
+                    tokio_tungstenite::tungstenite::Message::Text(msg_str) => {
+                        if let None = use_postcard {
+                            use_postcard = Some(false);
+                        }
+                        let msg =
+                            serde_json::from_str::<blimp_ground_ws_interface::MessageV2G>(&msg_str)
+                                .unwrap();
+                        handle_message_v2g(msg);
+                    }
+                    tokio_tungstenite::tungstenite::Message::Binary(msg_bin) => {
+                        if let None = use_postcard {
+                            use_postcard = Some(true);
+                        }
+                        let msg =
+                            postcard::from_bytes::<blimp_ground_ws_interface::MessageV2G>(&msg_bin)
+                                .unwrap();
+                        handle_message_v2g(msg);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    } else {
+        eprintln!("Error occurred while accepting WebSocket connection!");
     }
 }
 
@@ -109,6 +161,7 @@ async fn main() {
     {
         // WebSocket server for visualizations, etc.
 
+        let mut shutdown_rx = shutdown_tx.subscribe();
         let ws_listener = tokio::net::TcpListener::bind("127.0.0.1:8765")
             .await
             .expect("Couldn't open WebSocket listener");
@@ -116,14 +169,7 @@ async fn main() {
             tokio::select! {
                 res = ws_listener.accept() => {
                     if let Ok((stream, _)) = res {
-                        tokio::spawn(async {
-                            if let Ok(mut ws_stream) = tokio_tungstenite::accept_async(stream).await{
-                                println!("New WebSocket connection with {}", ws_stream.get_ref().peer_addr().and_then(|x| Ok(format!("{}", x))).unwrap_or("unknown".to_string()));
-
-                                while let Some(ws_msg) = ws_stream.next().await {
-                                }
-                            }
-                        });
+                        tokio::spawn(handle_ground_ws_connection(stream));
                     }
                 }
                 _ = shutdown_rx.recv() => {

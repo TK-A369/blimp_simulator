@@ -1,3 +1,6 @@
 [submodule "deps/blimp_onboard_software"]
 	path = deps/blimp_onboard_software
 	url = https://github.com/TK-A369/blimp_onboard_software
+[submodule "deps/blimp_ground_ws_interface"]
+	path = deps/blimp_ground_ws_interface
+	url = https://github.com/TK-A369/blimp_ground_ws_interface.git

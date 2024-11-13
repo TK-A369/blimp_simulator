@@ -69,6 +69,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
 
 [[package]]
+name = "blimp_ground_ws_interface"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "blimp_onboard_software"
 version = "0.1.0"
 dependencies = [
@@ -80,12 +87,14 @@ dependencies = [
 name = "blimp_simulator"
 version = "0.1.0"
 dependencies = [
+ "blimp_ground_ws_interface",
  "blimp_onboard_software",
  "fixed",
  "futures-util",
  "nalgebra",
  "postcard",
  "serde",
+ "serde_json",
  "simba",
  "tokio",
  "tokio-tungstenite",
@@ -626,6 +635,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ryu"
+version = "1.0.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
+
+[[package]]
 name = "safe_arch"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -664,6 +679,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "serde_json"
+version = "1.0.132"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d726bfaff4b320266d395898905d0eba0345aae23b54aee3a737e260fd46db03"
+dependencies = [
+ "itoa",
+ "memchr",
+ "ryu",
+ "serde",
 ]
 
 [[package]]

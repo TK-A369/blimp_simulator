@@ -13,3 +13,4 @@ blimp_onboard_software = { path = "deps/blimp_onboard_software" }
 serde = "1.0.215"
 postcard = { version = "1.0.10", features = ["use-std"] }
 tokio-tungstenite = "0.24.0"
+futures-util = "0.3.31"

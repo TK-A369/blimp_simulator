@@ -5,6 +5,7 @@ use simba;
 use tokio;
 use tokio_tungstenite;
 use typenum;
+use futures_util::StreamExt
 
 use blimp_onboard_software;
 use blimp_onboard_software::obsw_interface::BlimpAlgorithm;
@@ -118,6 +119,9 @@ async fn main() {
                         tokio::spawn(async {
                             if let Ok(mut ws_stream) = tokio_tungstenite::accept_async(stream).await{
                                 println!("New WebSocket connection with {}", ws_stream.get_ref().peer_addr().and_then(|x| Ok(format!("{}", x))).unwrap_or("unknown".to_string()));
+
+                                while let Some(ws_msg) = ws_stream.next().await {
+                                }
                             }
                         });
                     }

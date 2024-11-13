@@ -3,6 +3,7 @@ use nalgebra;
 use postcard;
 use simba;
 use tokio;
+use tokio_tungstenite;
 use typenum;
 
 use blimp_onboard_software;
@@ -102,6 +103,30 @@ async fn main() {
                 };
             }
         });
+    }
+
+    {
+        // WebSocket server for visualizations, etc.
+
+        let ws_listener = tokio::net::TcpListener::bind("127.0.0.1:8765")
+            .await
+            .expect("Couldn't open WebSocket listener");
+        loop {
+            tokio::select! {
+                res = ws_listener.accept() => {
+                    if let Ok((stream, _)) = res {
+                        tokio::spawn(async {
+                            if let Ok(mut ws_stream) = tokio_tungstenite::accept_async(stream).await{
+                                println!("New WebSocket connection with {}", ws_stream.get_ref().peer_addr().and_then(|x| Ok(format!("{}", x))).unwrap_or("unknown".to_string()));
+                            }
+                        });
+                    }
+                }
+                _ = shutdown_rx.recv() => {
+                    break;
+                }
+            }
+        }
     }
 
     println!("Hello, world!");

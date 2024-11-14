@@ -1,5 +1,5 @@
 use fixed;
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 use nalgebra;
 use postcard;
 use simba;
@@ -42,7 +42,7 @@ impl Simulation {
 
 async fn handle_ground_ws_connection(
     stream: tokio::net::TcpStream,
-    motors_rx: tokio::sync::broadcast::Receiver<(u8, i32)>,
+    mut motors_rx: tokio::sync::broadcast::Receiver<(u8, i32)>,
 ) {
     println!("Accepting new WebSocket connection...");
     if let Ok(mut ws_stream) = tokio_tungstenite::accept_async(stream).await {
@@ -56,40 +56,78 @@ async fn handle_ground_ws_connection(
         );
 
         let mut use_postcard: Option<bool> = None;
-        let mut curr_interest = blimp_ground_ws_interface::VisInterest::new();
+        let mut curr_interest = std::sync::Arc::new(tokio::sync::Mutex::new(
+            blimp_ground_ws_interface::VisInterest::new(),
+        ));
 
-        let mut handle_message_v2g = move |msg: blimp_ground_ws_interface::MessageV2G| {
-            println!("Got V2G message:\n{:#?}", &msg);
-            match msg {
-                blimp_ground_ws_interface::MessageV2G::DeclareInterest(interest) => {
-                    curr_interest = interest;
+        let handle_message_v2g = {
+            let curr_interest = curr_interest.clone();
+            //TODO: Do it the other (stable) way
+            async move |msg: blimp_ground_ws_interface::MessageV2G| {
+                println!("Got V2G message:\n{:#?}", &msg);
+                match msg {
+                    blimp_ground_ws_interface::MessageV2G::DeclareInterest(interest) => {
+                        *(curr_interest.lock().await) = interest;
+                    }
+                    blimp_ground_ws_interface::MessageV2G::Controls(ctrls) => {}
                 }
-                blimp_ground_ws_interface::MessageV2G::Controls(ctrls) => {}
             }
         };
 
-        while let Some(ws_msg) = ws_stream.next().await {
-            if let Ok(ws_msg) = ws_msg {
-                match ws_msg {
-                    tokio_tungstenite::tungstenite::Message::Text(msg_str) => {
-                        if let None = use_postcard {
-                            use_postcard = Some(false);
+        async fn send_ws_msg(
+            ws_stream: &mut tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+            use_postcard: bool,
+            msg: blimp_ground_ws_interface::MessageG2V,
+        ) {
+            let msg_ser = if use_postcard {
+                tokio_tungstenite::tungstenite::Message::Binary(postcard::to_stdvec(&msg).unwrap())
+            } else {
+                tokio_tungstenite::tungstenite::Message::Text(serde_json::to_string(&msg).unwrap())
+            };
+            ws_stream.send(msg_ser).await.unwrap();
+        }
+
+        loop {
+            tokio::select! {
+                ws_msg = ws_stream.next()=> {
+                    if let Some(ws_msg)=ws_msg {
+                        if let Ok(ws_msg) = ws_msg {
+                            match ws_msg {
+                                tokio_tungstenite::tungstenite::Message::Text(msg_str) => {
+                                    if let None = use_postcard {
+                                        use_postcard = Some(false);
+                                    }
+                                    let msg =
+                                        serde_json::from_str::<blimp_ground_ws_interface::MessageV2G>(
+                                            &msg_str,
+                                        )
+                                        .unwrap();
+                                    handle_message_v2g(msg).await;
+                                }
+                                tokio_tungstenite::tungstenite::Message::Binary(msg_bin) => {
+                                    if let None = use_postcard {
+                                        use_postcard = Some(true);
+                                    }
+                                    let msg =
+                                        postcard::from_bytes::<blimp_ground_ws_interface::MessageV2G>(
+                                            &msg_bin,
+                                        )
+                                        .unwrap();
+                                    handle_message_v2g(msg).await;
+                                }
+                                _ => {}
+                            }
                         }
-                        let msg =
-                            serde_json::from_str::<blimp_ground_ws_interface::MessageV2G>(&msg_str)
-                                .unwrap();
-                        handle_message_v2g(msg);
                     }
-                    tokio_tungstenite::tungstenite::Message::Binary(msg_bin) => {
-                        if let None = use_postcard {
-                            use_postcard = Some(true);
-                        }
-                        let msg =
-                            postcard::from_bytes::<blimp_ground_ws_interface::MessageV2G>(&msg_bin)
-                                .unwrap();
-                        handle_message_v2g(msg);
+                    else {
+                        break;
                     }
-                    _ => {}
+                }
+                motors_update = motors_rx.recv() => {
+                    if curr_interest.lock().await.motors.clone() {
+                        let motors_update = motors_update.unwrap();
+                    send_ws_msg(&mut ws_stream, use_postcard.unwrap_or(true), blimp_ground_ws_interface::MessageG2V::MotorSpeed{id:motors_update.0, speed: motors_update.1}).await;
+                    }
                 }
             }
         }

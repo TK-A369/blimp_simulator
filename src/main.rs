@@ -58,13 +58,13 @@ async fn handle_ground_ws_connection(
 
         let mut use_postcard: Option<bool> = None;
         let curr_interest = std::sync::Arc::new(tokio::sync::Mutex::new(
-            blimp_ground_ws_interface::VisInterest::new(),
+            blimp_ground_ws_interface::VizInterest::new(),
         ));
 
         async fn handle_message_v2g(
             msg: blimp_ground_ws_interface::MessageV2G,
             curr_interest: std::sync::Arc<
-                tokio::sync::Mutex<blimp_ground_ws_interface::VisInterest>,
+                tokio::sync::Mutex<blimp_ground_ws_interface::VizInterest>,
             >,
             blimp_send_msg_tx: tokio::sync::mpsc::Sender<
                 blimp_onboard_software::obsw_algo::MessageG2B,
@@ -151,7 +151,7 @@ async fn handle_ground_ws_connection(
                         send_ws_msg(
                             &mut ws_stream,
                             use_postcard.unwrap_or(true),
-                            blimp_ground_ws_interface::MessageG2V::MotorSpeed{id:motors_update.0, speed: motors_update.1}
+                            blimp_ground_ws_interface::MessageG2V::MotorSpeed{id: motors_update.0, speed: motors_update.1}
                         ).await;
                     }
                 }

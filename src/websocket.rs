@@ -7,6 +7,7 @@ use blimp_ground_ws_interface;
 pub async fn handle_ground_ws_connection(
     stream: tokio::net::TcpStream,
     mut motors_rx: tokio::sync::broadcast::Receiver<(u8, i32)>,
+    mut servos_rx: tokio::sync::broadcast::Receiver<(u8, i16)>,
     blimp_send_msg_tx: tokio::sync::mpsc::Sender<blimp_onboard_software::obsw_algo::MessageG2B>,
 ) {
     println!("Accepting new WebSocket connection...");
@@ -75,7 +76,7 @@ pub async fn handle_ground_ws_connection(
 
         loop {
             tokio::select! {
-                ws_msg = ws_stream.next()=> {
+                ws_msg = ws_stream.next() => {
                     if let Some(ws_msg)=ws_msg {
                         if let Ok(ws_msg) = ws_msg {
                             match ws_msg {
@@ -119,6 +120,12 @@ pub async fn handle_ground_ws_connection(
                         ).await;
                     }
                 }
+                servos_update = servos_rx.recv() => {
+                    if curr_interest.lock().await.servos {
+                        let servos_update = servos_update.unwrap();
+                        send_ws_msg(&mut ws_stream, use_postcard.unwrap_or(true), blimp_ground_ws_interface::MessageG2V::ServoPosition{id: servos_update.0, angle:servos_update.1}).await;
+                    }
+                }
             }
         }
     } else {
@@ -129,6 +136,7 @@ pub async fn handle_ground_ws_connection(
 pub async fn ws_server_start(
     shutdown_tx: tokio::sync::broadcast::Sender<()>,
     motors_rx: tokio::sync::broadcast::Receiver<(u8, i32)>,
+    servos_rx: tokio::sync::broadcast::Receiver<(u8, i16)>,
     blimp_send_msg_tx: tokio::sync::mpsc::Sender<blimp_onboard_software::obsw_algo::MessageG2B>,
 ) {
     let mut shutdown_rx = shutdown_tx.subscribe();
@@ -140,7 +148,7 @@ pub async fn ws_server_start(
         tokio::select! {
             res = ws_listener.accept() => {
                 if let Ok((stream, _)) = res {
-                    tokio::spawn(handle_ground_ws_connection(stream, motors_rx.resubscribe(), blimp_send_msg_tx.clone()));
+                    tokio::spawn(handle_ground_ws_connection(stream, motors_rx.resubscribe(), servos_rx.resubscribe(), blimp_send_msg_tx.clone()));
                 }
             }
             _ = shutdown_rx.recv() => {

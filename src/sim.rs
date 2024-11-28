@@ -34,9 +34,11 @@ pub async fn sim_start(
 ) -> (
     tokio::sync::mpsc::Sender<blimp_onboard_software::obsw_algo::MessageG2B>,
     tokio::sync::broadcast::Receiver<(u8, i32)>,
+    tokio::sync::broadcast::Receiver<(u8, i16)>,
 ) {
     // When simulated blimp wants to set motors, it will be sent to this channel
     let (motors_tx, mut motors_rx) = tokio::sync::broadcast::channel::<(u8, i32)>(64);
+    let (servos_tx, mut servos_rx) = tokio::sync::broadcast::channel::<(u8, i16)>(64);
 
     let mut sim: std::sync::Arc<tokio::sync::Mutex<Simulation>> =
         std::sync::Arc::new(tokio::sync::Mutex::new(Simulation::new()));
@@ -80,6 +82,12 @@ pub async fn sim_start(
                                     speed,
                                 } => {
                                     motors_tx.send((motor, speed)).unwrap();
+                                }
+                                blimp_onboard_software::obsw_algo::BlimpAction::SetServo {
+                                    servo,
+                                    location,
+                                } => {
+                                    servos_tx.send((servo, location)).unwrap();
                                 }
                                 _ => {}
                             },
@@ -154,5 +162,5 @@ pub async fn sim_start(
         blimp_send_msg_tx
     };
 
-    (blimp_send_msg_tx, motors_rx)
+    (blimp_send_msg_tx, motors_rx, servos_rx)
 }

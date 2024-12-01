@@ -22,14 +22,13 @@ async fn main() {
 
     let (shutdown_tx, mut shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);
 
-    let (blimp_send_msg_tx, motors_rx, servos_rx) =
-        crate::sim::sim_start(shutdown_tx.clone()).await;
+    let sim_channels = crate::sim::sim_start(shutdown_tx.clone()).await;
 
     {
         // Ping the blimp
 
         let mut shutdown_rx = shutdown_tx.subscribe();
-        let blimp_send_msg_tx = blimp_send_msg_tx.clone();
+        let blimp_send_msg_tx = sim_channels.msg_tx.clone();
         tokio::spawn(async move {
             let mut i: u32 = 0;
             loop {
@@ -51,8 +50,7 @@ async fn main() {
     }
 
     // WebSocket server for visualizations, etc.
-    crate::websocket::ws_server_start(shutdown_tx.clone(), motors_rx, servos_rx, blimp_send_msg_tx)
-        .await;
+    crate::websocket::ws_server_start(shutdown_tx.clone(), &sim_channels).await;
 
     println!("Hello, world!");
 

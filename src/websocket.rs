@@ -84,23 +84,29 @@ pub async fn handle_ground_ws_connection(
                                     if let None = use_postcard {
                                         use_postcard = Some(false);
                                     }
-                                    let msg =
+                                    if let Ok(msg) =
                                         serde_json::from_str::<blimp_ground_ws_interface::MessageV2G>(
                                             &msg_str,
-                                        )
-                                        .unwrap();
-                                    handle_message_v2g(msg, curr_interest.clone(), blimp_send_msg_tx.clone()).await;
+                                        ) {
+                                            handle_message_v2g(msg, curr_interest.clone(), blimp_send_msg_tx.clone()).await;
+                                    }
+                                    else {
+                                        eprintln!("Couldn't deserialize JSON message from WebSocket!");
+                                    }
                                 }
                                 tokio_tungstenite::tungstenite::Message::Binary(msg_bin) => {
                                     if let None = use_postcard {
                                         use_postcard = Some(true);
                                     }
-                                    let msg =
+                                    if let Ok(msg) =
                                         postcard::from_bytes::<blimp_ground_ws_interface::MessageV2G>(
                                             &msg_bin,
-                                        )
-                                        .unwrap();
-                                    handle_message_v2g(msg, curr_interest.clone(), blimp_send_msg_tx.clone()).await;
+                                        ) {
+                                        handle_message_v2g(msg, curr_interest.clone(), blimp_send_msg_tx.clone()).await;
+                                    }
+                                    else {
+                                        eprintln!("Couldn't deserialize Postcard message from WebSocket!");
+                                    }
                                 }
                                 _ => {}
                             }
@@ -135,9 +141,7 @@ pub async fn handle_ground_ws_connection(
 
 pub async fn ws_server_start(
     shutdown_tx: tokio::sync::broadcast::Sender<()>,
-    motors_rx: tokio::sync::broadcast::Receiver<(u8, i32)>,
-    servos_rx: tokio::sync::broadcast::Receiver<(u8, i16)>,
-    blimp_send_msg_tx: tokio::sync::mpsc::Sender<blimp_onboard_software::obsw_algo::MessageG2B>,
+    sim_channels: &crate::sim::SimChannels,
 ) {
     let mut shutdown_rx = shutdown_tx.subscribe();
     let ws_listener = tokio::net::TcpListener::bind("127.0.0.1:8765")
@@ -148,7 +152,7 @@ pub async fn ws_server_start(
         tokio::select! {
             res = ws_listener.accept() => {
                 if let Ok((stream, _)) = res {
-                    tokio::spawn(handle_ground_ws_connection(stream, motors_rx.resubscribe(), servos_rx.resubscribe(), blimp_send_msg_tx.clone()));
+                    tokio::spawn(handle_ground_ws_connection(stream, sim_channels. motors_rx.resubscribe(), sim_channels. servos_rx.resubscribe(), sim_channels. msg_tx.clone()));
                 }
             }
             _ = shutdown_rx.recv() => {

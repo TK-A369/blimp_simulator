@@ -29,13 +29,13 @@ impl Simulation {
     }
 }
 
-pub async fn sim_start(
-    shutdown_tx: tokio::sync::broadcast::Sender<()>,
-) -> (
-    tokio::sync::mpsc::Sender<blimp_onboard_software::obsw_algo::MessageG2B>,
-    tokio::sync::broadcast::Receiver<(u8, i32)>,
-    tokio::sync::broadcast::Receiver<(u8, i16)>,
-) {
+pub struct SimChannels {
+    pub msg_tx: tokio::sync::mpsc::Sender<blimp_onboard_software::obsw_algo::MessageG2B>,
+    pub motors_rx: tokio::sync::broadcast::Receiver<(u8, i32)>,
+    pub servos_rx: tokio::sync::broadcast::Receiver<(u8, i16)>,
+}
+
+pub async fn sim_start(shutdown_tx: tokio::sync::broadcast::Sender<()>) -> SimChannels {
     // When simulated blimp wants to set motors, it will be sent to this channel
     let (motors_tx, mut motors_rx) = tokio::sync::broadcast::channel::<(u8, i32)>(64);
     let (servos_tx, mut servos_rx) = tokio::sync::broadcast::channel::<(u8, i16)>(64);
@@ -53,7 +53,7 @@ pub async fn sim_start(
                     if let Ok(msg_des) =
                         postcard::from_bytes::<blimp_onboard_software::obsw_algo::MessageB2G>(&msg)
                     {
-                        println!("Got message:\n{:#?}", msg_des);
+                        //println!("Got message:\n{:#?}", msg_des);
 
                         match msg_des {
                             blimp_onboard_software::obsw_algo::MessageB2G::Ping(ping_id) => {
@@ -167,5 +167,9 @@ pub async fn sim_start(
         blimp_send_msg_tx
     };
 
-    (blimp_send_msg_tx, motors_rx, servos_rx)
+    SimChannels {
+        msg_tx: blimp_send_msg_tx,
+        motors_rx,
+        servos_rx,
+    }
 }

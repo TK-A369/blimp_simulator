@@ -35,7 +35,7 @@ pub async fn handle_ground_ws_connection(
                 blimp_onboard_software::obsw_algo::MessageG2B,
             >,
         ) {
-            println!("Got V2G message:\n{:#?}", &msg);
+            //println!("Got V2G message:\n{:#?}", &msg);
             match msg {
                 blimp_ground_ws_interface::MessageV2G::DeclareInterest(interest) => {
                     *(curr_interest.lock().await) = interest;
@@ -91,7 +91,7 @@ pub async fn handle_ground_ws_connection(
                                             handle_message_v2g(msg, curr_interest.clone(), blimp_send_msg_tx.clone()).await;
                                     }
                                     else {
-                                        eprintln!("Couldn't deserialize JSON message from WebSocket!");
+                                        eprintln!("Couldn't deserialize JSON message from WebSocket: \"{}\"", msg_str);
                                     }
                                 }
                                 tokio_tungstenite::tungstenite::Message::Binary(msg_bin) => {
@@ -105,7 +105,7 @@ pub async fn handle_ground_ws_connection(
                                         handle_message_v2g(msg, curr_interest.clone(), blimp_send_msg_tx.clone()).await;
                                     }
                                     else {
-                                        eprintln!("Couldn't deserialize Postcard message from WebSocket!");
+                                        eprintln!("Couldn't deserialize Postcard message from WebSocket: {:02X?}", msg_bin);
                                     }
                                 }
                                 _ => {}

@@ -72,10 +72,10 @@ pub async fn handle_ground_ws_connection(
             ws_stream.send(msg_ser).await.unwrap();
         }
 
-        loop {
+        'ws_handler_loop: loop {
             tokio::select! {
                 ws_msg = ws_stream.next() => {
-                    if let Some(ws_msg)=ws_msg {
+                    if let Some(ws_msg) = ws_msg {
                         if let Ok(ws_msg) = ws_msg {
                             match ws_msg {
                                 tokio_tungstenite::tungstenite::Message::Text(msg_str) => {
@@ -111,7 +111,14 @@ pub async fn handle_ground_ws_connection(
                         }
                     }
                     else {
-                        break;
+                        println!(
+                            "WebSocket client {} disconnected",
+                            ws_stream
+                                .get_ref()
+                                .peer_addr()
+                                .and_then(|x| Ok(format!("{}", x)))
+                                .unwrap_or("unknown".to_string()));
+                        break 'ws_handler_loop;
                     }
                 }
                 motors_update = sim_channels.motors_rx.recv() => {

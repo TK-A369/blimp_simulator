@@ -91,6 +91,11 @@ pub async fn sim_start(
                                 }
                                 _ => {}
                             },
+                            blimp_onboard_software::obsw_algo::MessageB2G::ForwardEvent(
+                                fwd_event,
+                            ) => match fwd_event {
+                                _ => {}
+                            },
                         }
                     }
                 }

@@ -33,12 +33,27 @@ pub struct SimChannels {
     pub msg_tx: tokio::sync::mpsc::Sender<blimp_onboard_software::obsw_algo::MessageG2B>,
     pub motors_rx: tokio::sync::broadcast::Receiver<(u8, i32)>,
     pub servos_rx: tokio::sync::broadcast::Receiver<(u8, i16)>,
+    pub sensors_rx:
+        tokio::sync::broadcast::Receiver<(blimp_onboard_software::obsw_algo::SensorType, f64)>,
+}
+
+impl SimChannels {
+    pub fn resubscribe(&self) -> Self {
+        Self {
+            msg_tx: self.msg_tx.clone(),
+            motors_rx: self.motors_rx.resubscribe(),
+            servos_rx: self.servos_rx.resubscribe(),
+            sensors_rx: self.sensors_rx.resubscribe(),
+        }
+    }
 }
 
 pub async fn sim_start(shutdown_tx: tokio::sync::broadcast::Sender<()>) -> SimChannels {
     // When simulated blimp wants to set motors, it will be sent to this channel
     let (motors_tx, mut motors_rx) = tokio::sync::broadcast::channel::<(u8, i32)>(64);
     let (servos_tx, mut servos_rx) = tokio::sync::broadcast::channel::<(u8, i16)>(64);
+    let (sensors_tx, mut sensors_rx) =
+        tokio::sync::broadcast::channel::<(blimp_onboard_software::obsw_algo::SensorType, f64)>(64);
 
     let mut sim: std::sync::Arc<tokio::sync::Mutex<Simulation>> =
         std::sync::Arc::new(tokio::sync::Mutex::new(Simulation::new()));
@@ -94,12 +109,17 @@ pub async fn sim_start(shutdown_tx: tokio::sync::broadcast::Sender<()>) -> SimCh
                             blimp_onboard_software::obsw_algo::MessageB2G::ForwardEvent(
                                 fwd_event,
                             ) => match fwd_event {
+                                blimp_onboard_software::obsw_algo::BlimpEvent::SensorDataF64(
+                                    sns,
+                                    data,
+                                ) => {
+                                    sensors_tx.send((sns, data)).unwrap();
+                                }
                                 _ => {}
                             },
                         }
                     }
                 }
-                blimp_onboard_software::obsw_algo::BlimpAction::SetMotor { motor, speed } => {}
                 _ => {}
             }
         });
@@ -171,5 +191,6 @@ pub async fn sim_start(shutdown_tx: tokio::sync::broadcast::Sender<()>) -> SimCh
         msg_tx: blimp_send_msg_tx,
         motors_rx,
         servos_rx,
+        sensors_rx,
     }
 }

@@ -187,6 +187,64 @@ pub async fn sim_start(shutdown_tx: tokio::sync::broadcast::Sender<()>) -> SimCh
         blimp_send_msg_tx
     };
 
+    {
+        // Ping the blimp
+
+        let mut shutdown_rx = shutdown_tx.subscribe();
+        let msg_tx = blimp_send_msg_tx.clone();
+        tokio::spawn(async move {
+            let mut i: u32 = 0;
+            loop {
+                println!("Pinging the blimp with id {}", i);
+                msg_tx
+                    .send(blimp_onboard_software::obsw_algo::MessageG2B::Ping(i))
+                    .await
+                    .unwrap();
+                i += 1;
+
+                tokio::select! {
+                    _ = tokio::time::sleep(tokio::time::Duration::from_millis(1000))=>{
+                    }
+                    _ = shutdown_rx.recv() => {
+                        break;
+                    }
+                };
+            }
+        });
+    }
+
+    {
+        // Sensors simulation
+        let mut shutdown_rx = shutdown_tx.subscribe();
+        let sim = sim.clone();
+        tokio::spawn(async move {
+            let mut counter: i64 = 0;
+            loop {
+                sim.lock()
+                    .await
+                    .blimp
+                    .main_algo
+                    .handle_event(
+                        &blimp_onboard_software::obsw_algo::BlimpEvent::SensorDataF64(
+                            blimp_onboard_software::obsw_algo::SensorType::Barometer,
+                            (counter as f64 * 0.1).sin() * 2000.0 + 101300.0,
+                        ),
+                    )
+                    .await;
+
+                tokio::select! {
+                    _ = tokio::time::sleep(tokio::time::Duration::from_millis(250)) => {
+                    }
+                    _ = shutdown_rx.recv() => {
+                        break;
+                    }
+                };
+
+                counter += 1;
+            }
+        });
+    }
+
     SimChannels {
         msg_tx: blimp_send_msg_tx,
         motors_rx,

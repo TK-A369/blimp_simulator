@@ -24,31 +24,6 @@ async fn main() {
 
     let sim_channels = crate::sim::sim_start(shutdown_tx.clone()).await;
 
-    {
-        // Ping the blimp
-
-        let mut shutdown_rx = shutdown_tx.subscribe();
-        let blimp_send_msg_tx = sim_channels.msg_tx.clone();
-        tokio::spawn(async move {
-            let mut i: u32 = 0;
-            loop {
-                println!("Pinging the blimp with id {}", i);
-                blimp_send_msg_tx
-                    .send(blimp_onboard_software::obsw_algo::MessageG2B::Ping(i))
-                    .await
-                    .unwrap();
-                i += 1;
-
-                tokio::select! {
-                    _ = tokio::time::sleep(tokio::time::Duration::from_millis(1000))=>{}
-                    _ = shutdown_rx.recv()=>{
-                        break;
-                    }
-                };
-            }
-        });
-    }
-
     // WebSocket server for visualizations, etc.
     crate::websocket::ws_server_start(shutdown_tx.clone(), &sim_channels).await;
 
